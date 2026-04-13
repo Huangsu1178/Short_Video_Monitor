@@ -244,3 +244,15 @@ DEFAULT_AI_MAX_TOKENS = AI_CONFIG["max_tokens"]
 # 抓取默认配置
 DEFAULT_MAX_VIDEOS = SCRAPER_CONFIG["max_videos_per_fetch"]
 DEFAULT_FETCH_INTERVAL = SCHEDULER_CONFIG["fetch_interval_hours"]
+
+
+# ==================== 加载本地配置（不被版本控制）====================
+# 尝试加载 config_local.py 中的配置（包含 API Key 等敏感信息）
+try:
+    from config_local import AI_LOCAL_CONFIG, SCRAPER_LOCAL_CONFIG
+    AI_CONFIG.update(AI_LOCAL_CONFIG)
+    SCRAPER_CONFIG.update(SCRAPER_LOCAL_CONFIG)
+    print("[Config] 已加载本地配置 (config_local.py)")
+except ImportError:
+    # config_local.py 不存在，使用默认配置
+    pass
