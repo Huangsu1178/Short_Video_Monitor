@@ -1,7 +1,7 @@
 """
 TikTok Monitor - AI Report Page
-AI 分析报告页面
 """
+
 import os
 import sys
 
@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.platforms import format_account_identity, platform_label
+from core.platforms import platform_label
 
 
 PAGE_STYLE = """
@@ -64,8 +64,6 @@ QPushButton {
 
 
 class AnalysisWorker(QThread):
-    """后台分析线程"""
-
     finished = pyqtSignal(str, object, object, str)
     failed = pyqtSignal(str)
 
@@ -106,13 +104,13 @@ class MetricChip(QFrame):
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(4)
 
-        label_widget = QLabel(label)
-        label_widget.setStyleSheet("color: #8fa6c9; font-size: 12px;")
-        layout.addWidget(label_widget)
+        title = QLabel(label)
+        title.setStyleSheet("color: #8fa6c9; font-size: 12px;")
+        layout.addWidget(title)
 
-        value_widget = QLabel(value)
-        value_widget.setStyleSheet(f"color: {accent}; font-size: 18px; font-weight: 700;")
-        layout.addWidget(value_widget)
+        value_label = QLabel(value)
+        value_label.setStyleSheet(f"color: {accent}; font-size: 18px; font-weight: 700;")
+        layout.addWidget(value_label)
 
 
 class AnalysisCard(QFrame):
@@ -170,13 +168,12 @@ class EmptyState(QFrame):
 
 
 class AIReportPage(QWidget):
-    """AI 分析报告页面"""
-
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
         self._current_influencer = None
         self._current_videos = []
+        self._external_batch_context = None
         self._worker = None
         self._loading_base = ""
         self._loading_step = 0
@@ -211,7 +208,7 @@ class AIReportPage(QWidget):
         title.setStyleSheet("color: #f4f8ff; font-size: 28px; font-weight: 800;")
         header_layout.addWidget(title)
 
-        subtitle = QLabel("支持单视频拆解与批量规律分析，分析过程中会展示实时等待状态，结果会自动落在下方报告区。")
+        subtitle = QLabel("支持单视频拆解与批量规律分析，分析过程中会展示实时等待状态，结果会自动展示在下方报告区。")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #bfd0ea; font-size: 14px; line-height: 1.7;")
         header_layout.addWidget(subtitle)
@@ -242,7 +239,7 @@ class AIReportPage(QWidget):
 
         refresh_btn = QPushButton("刷新数据")
         refresh_btn.setStyleSheet("QPushButton { background-color: #294166; color: white; } QPushButton:hover { background-color: #35517d; }")
-        refresh_btn.clicked.connect(self.refresh)
+        refresh_btn.clicked.connect(self._handle_refresh_clicked)
         selectors.addWidget(refresh_btn)
         selectors.addStretch()
         controls_layout.addLayout(selectors)
@@ -283,7 +280,6 @@ class AIReportPage(QWidget):
 
         self.tabs_row = QHBoxLayout()
         self.tabs_row.setSpacing(10)
-
         self.single_tab_btn = QPushButton("单视频报告")
         self.single_tab_btn.clicked.connect(lambda: self._switch_report("single"))
         self.batch_tab_btn = QPushButton("批量规律报告")
@@ -299,7 +295,6 @@ class AIReportPage(QWidget):
 
         self.single_scroll = self._create_scroll_container()
         self.batch_scroll = self._create_scroll_container()
-
         stack_layout.addWidget(self.single_scroll)
         stack_layout.addWidget(self.batch_scroll)
         root.addWidget(self.report_stack, 1)
@@ -316,7 +311,6 @@ class AIReportPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
         scroll.setWidget(content)
-        scroll._content_widget = content
         scroll._content_layout = layout
         return scroll
 
@@ -340,8 +334,58 @@ class AIReportPage(QWidget):
         self.single_tab_btn.setStyleSheet(active_style if single_active else idle_style)
         self.batch_tab_btn.setStyleSheet(active_style if not single_active else idle_style)
 
+    def _is_external_batch_context(self) -> bool:
+        return bool(self._external_batch_context)
+
+    def _clear_external_batch_context(self):
+        self._external_batch_context = None
+
+    def _handle_refresh_clicked(self):
+        if self._is_external_batch_context():
+            self._clear_external_batch_context()
+            self._show_status("已退出批量聚合范围，恢复普通选择模式", "#a9c2e8")
+        self.refresh()
+
+    def _update_controls_for_context(self):
+        external_batch = self._is_external_batch_context()
+        self.video_combo.setEnabled(not external_batch)
+        self.single_btn.setEnabled(not external_batch)
+
+        if external_batch:
+            self.influencer_combo.setToolTip("当前上下文来自数据视图的批量聚合分析")
+            self.video_combo.setToolTip("聚合范围没有单条视频下拉上下文")
+            self.single_btn.setToolTip("请返回数据视图选择单条视频后再执行单视频分析")
+        else:
+            self.influencer_combo.setToolTip("")
+            self.video_combo.setToolTip("")
+            self.single_btn.setToolTip("")
+
+    def _apply_external_batch_context(self):
+        context = self._external_batch_context or {}
+        label = context.get("label", "当前批量范围")
+        videos = list(context.get("videos", []))
+
+        self.influencer_combo.blockSignals(True)
+        self.influencer_combo.clear()
+        self.influencer_combo.addItem(f"批量范围：{label}", None)
+        self.influencer_combo.setCurrentIndex(0)
+        self.influencer_combo.blockSignals(False)
+
+        self.video_combo.blockSignals(True)
+        self.video_combo.clear()
+        self.video_combo.addItem(f"已聚合 {len(videos)} 条视频", None)
+        self.video_combo.blockSignals(False)
+
+        self._current_influencer = None
+        self._current_videos = videos
+        self._update_controls_for_context()
+
     def refresh(self):
         from data.database import get_all_influencers, get_videos_by_influencer
+
+        if self._is_external_batch_context():
+            self._apply_external_batch_context()
+            return
 
         influencers = get_all_influencers()
         selected_influencer_id = self._current_influencer.get("id") if self._current_influencer else None
@@ -352,7 +396,8 @@ class AIReportPage(QWidget):
         self.influencer_combo.addItem("选择博主", None)
         selected_index = 0
         for idx, influencer in enumerate(influencers, start=1):
-            self.influencer_combo.addItem(f"{platform_label(influencer.get('platform'))} · @{influencer['username']}", influencer)
+            label = f"{platform_label(influencer.get('platform'))} | @{influencer['username']}"
+            self.influencer_combo.addItem(label, influencer)
             if influencer["id"] == selected_influencer_id:
                 selected_index = idx
         self.influencer_combo.setCurrentIndex(selected_index)
@@ -365,17 +410,20 @@ class AIReportPage(QWidget):
             self._current_influencer = None
             self._current_videos = []
 
-        self._reload_video_combo(selected_video_id=selected_video_id)
+        self._reload_video_combo(selected_video_id)
+        self._update_controls_for_context()
 
     def _on_influencer_changed(self, index: int):
         from data.database import get_videos_by_influencer
 
+        self._clear_external_batch_context()
         self._current_influencer = self.influencer_combo.itemData(index)
         if self._current_influencer:
             self._current_videos = get_videos_by_influencer(self._current_influencer["id"], 100)
         else:
             self._current_videos = []
         self._reload_video_combo()
+        self._update_controls_for_context()
 
     def _reload_video_combo(self, selected_video_id=None):
         self.video_combo.clear()
@@ -393,25 +441,39 @@ class AIReportPage(QWidget):
         self.video_combo.setCurrentIndex(chosen_index)
 
     def open_single_analysis(self, influencer: dict, video: dict):
+        self._clear_external_batch_context()
         self.refresh()
         self._select_context(influencer, video)
         self._switch_report("single")
         self.start_single_analysis(video, influencer.get("username", ""))
 
     def open_batch_analysis(self, influencer: dict | None, videos: list, username: str = ""):
+        if influencer is None and username:
+            self._external_batch_context = {
+                "label": username,
+                "videos": list(videos),
+            }
+        else:
+            self._clear_external_batch_context()
+
         self.refresh()
         video = videos[0] if videos else None
         self._select_context(influencer, video)
         self._switch_report("batch")
-        self.start_batch_analysis(videos, username or (influencer.get("username", "") if influencer else ""))
+        subject = username or (influencer.get("username", "") if influencer else "")
+        self.start_batch_analysis(videos, subject)
 
-    def _select_context(self, influencer: dict, video: dict | None):
+    def _select_context(self, influencer: dict | None, video: dict | None):
+        if self._is_external_batch_context():
+            return
+
         if influencer:
             for idx in range(self.influencer_combo.count()):
                 item = self.influencer_combo.itemData(idx)
                 if item and item.get("id") == influencer.get("id"):
                     self.influencer_combo.setCurrentIndex(idx)
                     break
+
         if video:
             for idx in range(self.video_combo.count()):
                 if self.video_combo.itemData(idx) == video.get("id"):
@@ -419,20 +481,36 @@ class AIReportPage(QWidget):
                     break
 
     def _run_selected_single_analysis(self):
+        if self._is_external_batch_context():
+            self._show_status("当前为批量聚合范围，请返回数据视图选择单条视频后再分析", "#ffb86b")
+            return
+
         video = self._get_selected_video()
         if not video:
             self._show_status("请先选择一个视频后再开始单视频分析", "#ffb86b")
             return
+
         username = self._current_influencer.get("username", "") if self._current_influencer else ""
         self.start_single_analysis(video, username)
 
     def _run_selected_batch_analysis(self):
+        if self._is_external_batch_context():
+            videos = self._external_batch_context.get("videos", [])
+            label = self._external_batch_context.get("label", "当前批量范围")
+            if not videos:
+                self._show_status("当前批量范围暂无可分析的视频", "#ff8b8b")
+                return
+            self.start_batch_analysis(videos[:10], label)
+            return
+
         if not self._current_influencer:
             self._show_status("请先选择博主后再开始批量规律分析", "#ffb86b")
             return
+
         if not self._current_videos:
             self._show_status("当前博主暂无视频数据，无法执行批量规律分析", "#ff8b8b")
             return
+
         username = self._current_influencer.get("username", "")
         self.start_batch_analysis(self._current_videos[:10], username)
 
@@ -443,7 +521,7 @@ class AIReportPage(QWidget):
                 return video
         return None
 
-    def _format_analysis_subject(self, username: str):
+    def _get_subject_label(self, username: str) -> str:
         if not username:
             return "当前范围"
         if username.startswith("已选 "):
@@ -454,7 +532,7 @@ class AIReportPage(QWidget):
         self._render_loading(
             mode="single",
             title="正在进行单视频分析",
-            desc="我们正在拆解开头钩子、内容结构、文案风格和可复用策略，请稍候。",
+            desc="正在拆解开场钩子、内容结构、文案风格和可复用策略，请稍候。",
         )
         self._start_worker("single", video=video, username=username)
 
@@ -505,10 +583,15 @@ class AIReportPage(QWidget):
             self._set_scroll_content(self.batch_scroll, [error_state])
 
     def _set_busy(self, busy: bool, mode: str):
-        self.single_btn.setEnabled(not busy)
+        self.influencer_combo.setEnabled(not busy and not self._is_external_batch_context())
         self.batch_btn.setEnabled(not busy)
-        self.influencer_combo.setEnabled(not busy)
-        self.video_combo.setEnabled(not busy)
+
+        if self._is_external_batch_context():
+            self.video_combo.setEnabled(False)
+            self.single_btn.setEnabled(False)
+        else:
+            self.video_combo.setEnabled(not busy)
+            self.single_btn.setEnabled(not busy)
 
         if busy:
             self._loading_base = "单视频分析中" if mode == "single" else "批量规律分析中"
@@ -517,6 +600,7 @@ class AIReportPage(QWidget):
             self._tick_loading()
         else:
             self._loading_timer.stop()
+            self._update_controls_for_context()
 
     def _tick_loading(self):
         dots = "." * (self._loading_step % 4)
@@ -584,13 +668,14 @@ class AIReportPage(QWidget):
             [
                 EmptyState(
                     "批量规律分析",
-                    "选择博主后点击“批量规律分析”，系统会基于当前博主播放表现最好的视频总结爆款规律与创作公式。",
+                    "选择博主后点击“批量规律分析”，系统会基于当前范围内表现最好的视频总结爆款规律与创作公式。",
                 )
             ],
         )
 
     def show_analysis(self, video: dict, analysis: dict, username: str = ""):
         desc = video.get("description") or video.get("title") or "无描述"
+        subject = self._get_subject_label(username)
         metrics = [
             MetricChip("播放量", self._format_number(video.get("play_count", 0)), "#ffb86b"),
             MetricChip("点赞数", self._format_number(video.get("like_count", 0)), "#ff7f96"),
@@ -599,7 +684,7 @@ class AIReportPage(QWidget):
         ]
 
         hero = self._build_report_hero(
-            f"@{username} 的单视频分析",
+            f"{subject} 的单视频分析",
             desc,
             "单条视频拆解结果",
             "#ff7b65",
@@ -649,17 +734,17 @@ class AIReportPage(QWidget):
             ("复用建议", analysis.get("replication_suggestions", ""), "#7ae0d3"),
         ]
         for idx, (title, content, accent) in enumerate(cards):
-            card = AnalysisCard(title, content, accent)
-            grid.addWidget(card, idx // 2, idx % 2)
+            grid.addWidget(AnalysisCard(title, content, accent), idx // 2, idx % 2)
 
         self._set_scroll_content(self.single_scroll, [hero, metrics_frame, hook_banner, grid_frame])
         self._switch_report("single")
 
     def show_batch_analysis(self, analysis: dict, username: str = ""):
         count = analysis.get("analyzed_videos_count", 0)
+        subject = self._get_subject_label(username)
         hero = self._build_report_hero(
-            f"@{username} 的批量规律分析",
-            f"基于表现最好的 {count} 条视频，提炼可复用的内容结构、钩子模型与账号选题策略。",
+            f"{subject} 的批量规律分析",
+            f"基于表现最好的 {count} 条视频，提炼可复用的内容结构、钩子模型与选题策略。",
             "批量规律总结",
             "#6176ff",
             extra_text="建议将下方公式与建议结合具体赛道做二次改写，不要直接照搬。",
