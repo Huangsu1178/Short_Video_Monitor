@@ -201,11 +201,48 @@ class AIReportPage(QWidget):
 
     def _build_ui(self):
         self.setStyleSheet(PAGE_STYLE)
-
-        root = QVBoxLayout(self)
+    
+        # 主滚动区域 - 整个界面都在滚动容器中
+        main_scroll = QScrollArea()
+        main_scroll.setWidgetResizable(True)
+        main_scroll.setStyleSheet(
+            """
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollArea > QWidget > QWidget {
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #152136;
+                width: 10px;
+                border-radius: 5px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #2f476b;
+                border-radius: 5px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #3d5a80;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background-color: transparent;
+            }
+            """
+        )
+            
+        # 主容器
+        main_container = QWidget()
+        root = QVBoxLayout(main_container)
         root.setContentsMargins(24, 24, 24, 24)
         root.setSpacing(18)
-
+    
         header = QFrame()
         header.setStyleSheet(
             """
@@ -220,16 +257,16 @@ class AIReportPage(QWidget):
         header_layout = QVBoxLayout(header)
         header_layout.setContentsMargins(24, 24, 24, 24)
         header_layout.setSpacing(14)
-
+    
         title = QLabel("AI 分析报告中心")
         title.setStyleSheet("color: #f4f8ff; font-size: 28px; font-weight: 800;")
         header_layout.addWidget(title)
-
-        subtitle = QLabel("支持单视频拆解与批量规律分析，分析过程中会展示实时等待状态，结果会自动展示在下方报告区。")
+    
+        subtitle = QLabel("支持单视频拆解与批量规律分析,分析过程中会展示实时等待状态,结果会自动展示在下方报告区。")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #bfd0ea; font-size: 14px; line-height: 1.7;")
         header_layout.addWidget(subtitle)
-
+    
         controls = QFrame()
         controls.setStyleSheet(
             """
@@ -243,39 +280,39 @@ class AIReportPage(QWidget):
         controls_layout = QVBoxLayout(controls)
         controls_layout.setContentsMargins(18, 18, 18, 18)
         controls_layout.setSpacing(14)
-
+    
         selectors = QHBoxLayout()
         selectors.setSpacing(12)
-
+    
         self.influencer_combo = QComboBox()
         self.influencer_combo.currentIndexChanged.connect(self._on_influencer_changed)
         selectors.addWidget(self.influencer_combo)
-
+    
         self.video_combo = QComboBox()
         selectors.addWidget(self.video_combo)
-
+    
         refresh_btn = QPushButton("刷新数据")
         refresh_btn.setStyleSheet(secondary_button_style())
         refresh_btn.clicked.connect(self._handle_refresh_clicked)
         selectors.addWidget(refresh_btn)
         selectors.addStretch()
         controls_layout.addLayout(selectors)
-
+    
         actions = QHBoxLayout()
         actions.setSpacing(12)
-
+    
         self.single_btn = QPushButton("单视频分析")
         self.single_btn.setStyleSheet(
             f"QPushButton {{ background-color: {ACCENT}; color: white; }} QPushButton:hover {{ background-color: {ACCENT_HOVER}; }}"
         )
         self.single_btn.clicked.connect(self._run_selected_single_analysis)
         actions.addWidget(self.single_btn)
-
+    
         self.batch_btn = QPushButton("批量规律分析")
         self.batch_btn.setStyleSheet(accent_button_style())
         self.batch_btn.clicked.connect(self._run_selected_batch_analysis)
         actions.addWidget(self.batch_btn)
-
+    
         self.status_badge = QLabel("等待分析")
         self.status_badge.setStyleSheet(
             """
@@ -294,9 +331,9 @@ class AIReportPage(QWidget):
         actions.addStretch()
         controls_layout.addLayout(actions)
         header_layout.addWidget(controls)
-
+    
         root.addWidget(header)
-
+    
         self.tabs_row = QHBoxLayout()
         self.tabs_row.setSpacing(10)
         self.single_tab_btn = QPushButton("单视频报告")
@@ -310,15 +347,15 @@ class AIReportPage(QWidget):
         self.tabs_row.addWidget(self.ab_tab_btn)
         self.tabs_row.addStretch()
         root.addLayout(self.tabs_row)
-
-        # AB对比控制区（默认隐藏）
+    
+        # AB对比控制区(默认隐藏)
         self.ab_controls = self._build_ab_controls()
         root.addWidget(self.ab_controls)
-
+    
         self.report_stack = QWidget()
         stack_layout = QVBoxLayout(self.report_stack)
         stack_layout.setContentsMargins(0, 0, 0, 0)
-
+    
         self.single_scroll = self._create_scroll_container()
         self.batch_scroll = self._create_scroll_container()
         self.ab_scroll = self._create_scroll_container()
@@ -326,22 +363,30 @@ class AIReportPage(QWidget):
         stack_layout.addWidget(self.batch_scroll)
         stack_layout.addWidget(self.ab_scroll)
         root.addWidget(self.report_stack, 1)
-
+    
         self._render_single_empty()
+        self._render_batch_empty()
+        self._render_ab_empty()
+        self._switch_report("single")
+            
+        # 设置主滚动区域
+        main_scroll.setWidget(main_container)
+        main_scroll.setMinimumHeight(800)  # 设置主滚动区域最小高度
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(main_scroll)
         self._render_batch_empty()
         self._render_ab_empty()
         self._switch_report("single")
 
     def _create_scroll_container(self):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        content = QWidget()
-        layout = QVBoxLayout(content)
+        """创建报告容器 - 由于主界面已有滚动容器，这里只创建普通容器"""
+        container = QWidget()
+        layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
-        scroll.setWidget(content)
-        scroll._content_layout = layout
-        return scroll
+        container._content_layout = layout
+        return container
 
     def _build_ab_controls(self):
         """构建AB对比控制区"""
@@ -450,7 +495,7 @@ class AIReportPage(QWidget):
         combo.currentIndexChanged.connect(lambda idx, g=group_name: self._on_group_influencer_changed(g, idx))
         layout.addWidget(combo)
 
-        # 视频多选列表
+        # 视频多选列表 - 支持滚动
         list_widget = QListWidget()
         list_widget.setObjectName(f"group_{group_name.lower()}_list")
         list_widget.setStyleSheet(
@@ -472,9 +517,28 @@ class AIReportPage(QWidget):
             QListWidget::item:selected {{
                 background-color: {BG_SURFACE_HOVER};
             }}
+            QScrollBar:vertical {{
+                background-color: #152136;
+                width: 6px;
+                border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: #2f476b;
+                border-radius: 3px;
+                min-height: 15px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: #3d5a80;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background-color: transparent;
+            }}
             """
         )
-        list_widget.setMaximumHeight(180)
+        list_widget.setMaximumHeight(150)  # 稍微减小以容纳更多内容
         list_widget.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
         list_widget.itemChanged.connect(lambda item, g=group_name: self._on_group_video_selection_changed(g))
         layout.addWidget(list_widget)
