@@ -139,11 +139,15 @@ _load_dotenv_file()
 # ==================== AI 模型配置 ====================
 AI_CONFIG = {
     # 默认使用的模型名称
-    "default_model": "gpt-5-chat-latest",
+    "default_model": "gemini-2.0-flash",
     
     # API 配置
     "api_base": "",  # 留空则使用 OpenAI 官方 API
     "api_key": "",   # 留空则从环境变量读取
+    
+    # Gemini 配置
+    "gemini_api_key": "",
+    "gemini_model": "gemini-2.0-flash",
     
     # 请求参数
     "temperature": 0.7,
@@ -395,6 +399,14 @@ if os.environ.get('OPENAI_MODEL'):
     AI_CONFIG['default_model'] = os.environ['OPENAI_MODEL']
     print(f"[Config] ✅ AI配置: default_model = {os.environ['OPENAI_MODEL']}")
 
+# Gemini 配置
+if os.environ.get('GEMINI_API_KEY'):
+    AI_CONFIG['gemini_api_key'] = os.environ['GEMINI_API_KEY']
+    print(f"[Config] ✅ Gemini配置: api_key 已设置")
+if os.environ.get('GEMINI_MODEL'):
+    AI_CONFIG['gemini_model'] = os.environ['GEMINI_MODEL']
+    print(f"[Config] ✅ Gemini配置: model = {os.environ['GEMINI_MODEL']}")
+
 # 代理配置（仅从 .env 读取，不使用系统环境变量）
 if os.environ.get('PROXY_URL'):
     SCRAPER_CONFIG['proxy_url'] = os.environ['PROXY_URL']
@@ -457,6 +469,8 @@ def sync_config_to_env(section: str, key: str, value: Any) -> bool:
         ('AI_CONFIG', 'api_key'): 'OPENAI_API_KEY',
         ('AI_CONFIG', 'api_base'): 'OPENAI_API_BASE',
         ('AI_CONFIG', 'default_model'): 'OPENAI_MODEL',
+        ('AI_CONFIG', 'gemini_api_key'): 'GEMINI_API_KEY',
+        ('AI_CONFIG', 'gemini_model'): 'GEMINI_MODEL',
         ('SCRAPER_CONFIG', 'proxy_url'): 'PROXY_URL',
         ('SCRAPER_CONFIG', 'max_videos_per_fetch'): 'MAX_VIDEOS_PER_FETCH',
         ('SCRAPER_CONFIG', 'download_path'): 'DOWNLOAD_PATH',

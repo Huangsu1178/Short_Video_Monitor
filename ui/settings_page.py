@@ -72,6 +72,43 @@ class SettingsPage(QWidget):
         ai_form.setSpacing(12)
         ai_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
+        # Gemini API Key
+        self.gemini_api_key_input = QLineEdit()
+        self.gemini_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.gemini_api_key_input.setPlaceholderText("Gemini API Key (推荐)")
+        self.gemini_api_key_input.setStyleSheet(INPUT_STYLE)
+
+        gemini_key_row = QHBoxLayout()
+        gemini_key_row.addWidget(self.gemini_api_key_input)
+        show_gemini_key_btn = QPushButton("显示")
+        show_gemini_key_btn.setFixedSize(36, 36)
+        show_gemini_key_btn.setStyleSheet(secondary_button_style())
+        show_gemini_key_btn.clicked.connect(lambda: self._toggle_password_visibility(self.gemini_api_key_input))
+        gemini_key_row.addWidget(show_gemini_key_btn)
+
+        gemini_key_label = QLabel("Gemini API Key")
+        gemini_key_label.setStyleSheet(LABEL_STYLE)
+        ai_form.addRow(gemini_key_label, gemini_key_row)
+
+        gemini_hint = QLabel("优先使用Gemini AI。从 https://aistudio.google.com/apikey 获取。")
+        gemini_hint.setStyleSheet(HINT_STYLE)
+        gemini_hint.setWordWrap(True)
+        ai_form.addRow("", gemini_hint)
+
+        # Gemini Model
+        self.gemini_model_input = QLineEdit()
+        self.gemini_model_input.setPlaceholderText("gemini-2.0-flash")
+        self.gemini_model_input.setStyleSheet(INPUT_STYLE + "QLineEdit { min-width: 200px; }")
+        gemini_model_label = QLabel("Gemini 模型")
+        gemini_model_label.setStyleSheet(LABEL_STYLE)
+        ai_form.addRow(gemini_model_label, self.gemini_model_input)
+
+        # 分隔线
+        separator = QLabel("─" * 60)
+        separator.setStyleSheet("color: #4a5568; font-size: 12px;")
+        ai_form.addRow("", separator)
+
+        # OpenAI API Key
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("sk-...")
@@ -216,11 +253,14 @@ class SettingsPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
-    def _toggle_api_key_visibility(self):
-        if self.api_key_input.echoMode() == QLineEdit.EchoMode.Password:
-            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+    def _toggle_password_visibility(self, input_widget):
+        if input_widget.echoMode() == QLineEdit.EchoMode.Password:
+            input_widget.setEchoMode(QLineEdit.EchoMode.Normal)
         else:
-            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+            input_widget.setEchoMode(QLineEdit.EchoMode.Password)
+
+    def _toggle_api_key_visibility(self):
+        self._toggle_password_visibility(self.api_key_input)
 
     def _browse_download_path(self):
         path = QFileDialog.getExistingDirectory(self, "选择下载目录")
@@ -230,9 +270,20 @@ class SettingsPage(QWidget):
     def _load_settings(self):
         """从环境变量加载设置"""
         # 直接从环境变量读取配置
+        
+        # Gemini 配置
+        gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+        self.gemini_api_key_input.setText(gemini_api_key)
+        print(f"[Settings] 加载 Gemini API Key: {'已设置' if gemini_api_key else '未设置'}")
+        
+        gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+        self.gemini_model_input.setText(gemini_model)
+        print(f"[Settings] 加载 Gemini Model: {gemini_model}")
+        
+        # OpenAI 配置
         api_key = os.environ.get("OPENAI_API_KEY", "")
         self.api_key_input.setText(api_key)
-        print(f"[Settings] 加载 API Key: {'已设置' if api_key else '未设置'}")
+        print(f"[Settings] 加载 OpenAI API Key: {'已设置' if api_key else '未设置'}")
         
         api_base = os.environ.get("OPENAI_API_BASE", "")
         self.api_base_input.setText(api_base)
@@ -269,6 +320,11 @@ class SettingsPage(QWidget):
 
     def _save_settings(self):
         """保存设置到 .env 文件"""
+        # Gemini 配置
+        gemini_api_key = self.gemini_api_key_input.text().strip()
+        gemini_model = self.gemini_model_input.text().strip() or "gemini-2.0-flash"
+        
+        # OpenAI 配置
         api_key = self.api_key_input.text().strip()
         api_base = self.api_base_input.text().strip()
         model = self.model_input.text().strip() or DEFAULT_AI_MODEL
@@ -279,6 +335,8 @@ class SettingsPage(QWidget):
         proxy_url = self.proxy_input.text().strip()
         
         # 同步到 .env 文件和内存配置
+        sync_config_to_env('AI_CONFIG', 'gemini_api_key', gemini_api_key)
+        sync_config_to_env('AI_CONFIG', 'gemini_model', gemini_model)
         sync_config_to_env('AI_CONFIG', 'api_key', api_key)
         sync_config_to_env('AI_CONFIG', 'api_base', api_base)
         sync_config_to_env('AI_CONFIG', 'default_model', model)
@@ -289,6 +347,8 @@ class SettingsPage(QWidget):
         sync_config_to_env('SCRAPER_CONFIG', 'proxy_url', proxy_url)
         
         # 更新内存中的配置
+        AI_CONFIG['gemini_api_key'] = gemini_api_key
+        AI_CONFIG['gemini_model'] = gemini_model
         AI_CONFIG['api_key'] = api_key
         AI_CONFIG['api_base'] = api_base
         AI_CONFIG['default_model'] = model

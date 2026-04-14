@@ -1,5 +1,5 @@
 """
-Shared OpenAI-compatible client helpers for AI skills.
+Shared AI client helpers for AI skills (OpenAI + Gemini).
 """
 
 import json
@@ -17,6 +17,13 @@ except ImportError:
     OpenAI = None
     OPENAI_AVAILABLE = False
 
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    genai = None
+    GEMINI_AVAILABLE = False
+
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import AI_CONFIG
@@ -26,13 +33,31 @@ class AIClientMixin:
     """Provide shared client setup, retry logic and response parsing."""
 
     def _init_ai_client(self, api_key: str = "", api_base: str = "", model: str = ""):
+        # 优先使用 Gemini
+        self.gemini_api_key = os.environ.get("GEMINI_API_KEY", "") or AI_CONFIG.get("gemini_api_key", "")
+        self.gemini_model = os.environ.get("GEMINI_MODEL", "") or AI_CONFIG.get("gemini_model", "gemini-2.0-flash")
+        
+        # OpenAI 配置
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
         self.api_base = api_base or os.environ.get("OPENAI_API_BASE", "") or AI_CONFIG.get("api_base", "")
         self.model = model or AI_CONFIG["default_model"]
+        
         self._client = None
+        self._gemini_model = None
         self._build_client()
 
     def _build_client(self):
+        # 优先初始化 Gemini
+        if GEMINI_AVAILABLE and self.gemini_api_key:
+            try:
+                genai.configure(api_key=self.gemini_api_key)
+                self._gemini_model = genai.GenerativeModel(self.gemini_model)
+                print(f"[AI Client] ✅ Gemini 客户端已初始化: {self.gemini_model}")
+                return
+            except Exception as e:
+                print(f"[AI Client] ⚠️ Gemini 初始化失败: {e}")
+        
+        # 备选 OpenAI
         if not (OPENAI_AVAILABLE and self.api_key):
             self._client = None
             return
@@ -55,8 +80,13 @@ class AIClientMixin:
         if self.api_base:
             client_kwargs["base_url"] = self.api_base
         self._client = OpenAI(**client_kwargs)
+        print(f"[AI Client] ✅ OpenAI 客户端已初始化: {self.model}")
 
     def is_available(self) -> bool:
+        # 优先检查 Gemini
+        if GEMINI_AVAILABLE and self.gemini_api_key and self._gemini_model:
+            return True
+        # 备选 OpenAI
         return OPENAI_AVAILABLE and bool(self.api_key) and self._client is not None
 
     def update_config(self, api_key: str, api_base: str = "", model: str = ""):
@@ -100,6 +130,11 @@ class AIClientMixin:
         max_retries: Optional[int] = None,
         **kwargs,
     ) -> Optional[Any]:
+        # 优先使用 Gemini
+        if self._gemini_model:
+            return self._call_gemini_with_retry(messages, max_retries, **kwargs)
+        
+        # 备选 OpenAI
         if not self._client:
             return None
 
@@ -145,6 +180,85 @@ class AIClientMixin:
 
         print(f"[AI Client] API call failed: {last_error}")
         return None
+
+    def _call_gemini_with_retry(
+        self,
+        messages: List[Dict[str, Any]],
+        max_retries: Optional[int] = None,
+        **kwargs,
+    ) -> Optional[Any]:
+        """调用 Gemini API 带重试"""
+        if not self._gemini_model:
+            return None
+
+        retries = max_retries or AI_CONFIG["max_retries"]
+        last_error = None
+
+        # 转换 messages 为 Gemini 格式
+        prompt = self._messages_to_gemini_prompt(messages)
+        
+        # 获取生成配置
+        generation_config = genai.types.GenerationConfig(
+            temperature=kwargs.get('temperature', AI_CONFIG['temperature']),
+            max_output_tokens=kwargs.get('max_tokens', AI_CONFIG['max_tokens']),
+        )
+
+        for attempt in range(retries):
+            try:
+                if attempt > 0:
+                    wait_time = self._get_retry_wait_seconds(attempt, last_error)
+                    print(f"[AI Client] Gemini Retry {attempt + 1}/{retries} in {wait_time}s")
+                    time.sleep(wait_time)
+
+                response = self._gemini_model.generate_content(
+                    prompt,
+                    generation_config=generation_config,
+                )
+                
+                if response.text:
+                    return response
+                else:
+                    print(f"[AI Client] Gemini returned empty response")
+                    return None
+                    
+            except Exception as exc:
+                last_error = exc
+                print(f"[AI Client] Gemini Attempt {attempt + 1} failed: {exc}")
+                
+                if not self._is_retryable_error(exc) or attempt >= retries - 1:
+                    break
+
+        print(f"[AI Client] Gemini API call failed: {last_error}")
+        return None
+
+    def _messages_to_gemini_prompt(self, messages: List[Dict[str, Any]]) -> str:
+        """将 OpenAI 格式的 messages 转换为 Gemini 的 prompt"""
+        parts = []
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            
+            if isinstance(content, list):
+                # 处理 content blocks
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = "\n".join(text_parts)
+            
+            if not content:
+                continue
+                
+            if role == "system":
+                parts.append(f"[System Instruction]\n{content}")
+            elif role == "assistant":
+                parts.append(f"[Assistant Context]\n{content}")
+            else:
+                parts.append(str(content))
+        
+        return "\n\n".join(parts)
 
     def _get_retry_wait_seconds(self, attempt: int, error: Optional[Exception]) -> int:
         error_text = str(error or "").lower()
@@ -278,6 +392,12 @@ class AIClientMixin:
     def _extract_response_text(self, response: Any) -> str:
         if isinstance(response, str):
             return response
+        
+        # 处理 Gemini 响应
+        if hasattr(response, 'text'):
+            return response.text
+        
+        # 处理 OpenAI 响应
         if hasattr(response, "choices"):
             choice = response.choices[0]
             message = getattr(choice, "message", None)
