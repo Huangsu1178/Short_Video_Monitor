@@ -87,14 +87,13 @@ class MainWindow(QMainWindow):
         self.fetch_task = FetchTask(self.scraper)
 
         # 从环境变量加载 AI 配置
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-        api_base = os.environ.get("OPENAI_API_BASE", "")
-        model = os.environ.get("OPENAI_MODEL", DEFAULT_AI_MODEL)
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        model = os.environ.get("GEMINI_MODEL", DEFAULT_AI_MODEL)
         
-        print(f"[MainWindow] AI配置: api_key={'已设置' if api_key else '未设置'}, api_base={api_base or '默认'}, model={model}")
+        print(f"[MainWindow] AI配置: api_key={'已设置' if api_key else '未设置'}, model={model}")
         
-        self.ai_analyzer = AIAnalyzer(api_key=api_key, api_base=api_base, model=model)
-        self.skill_registry = initialize_skills(api_key, api_base, model)
+        self.ai_analyzer = AIAnalyzer(api_key=api_key, api_base="", model=model)
+        self.skill_registry = initialize_skills(api_key, "", model)
 
         # 从环境变量加载调度器配置
         auto_fetch_enabled = os.environ.get("AUTO_FETCH_ENABLED", "0") == "1"

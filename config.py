@@ -46,17 +46,6 @@ def _load_dotenv_file():
             print(f"[Config] ✅ 成功加载 .env 文件: {env_path}")
             
             # 输出加载的关键配置（隐藏敏感信息）
-            if os.environ.get('OPENAI_API_KEY'):
-                api_key = os.environ['OPENAI_API_KEY']
-                masked_key = api_key[:8] + '...' + api_key[-4:] if len(api_key) > 12 else '***'
-                print(f"[Config] 📝 OPENAI_API_KEY: {masked_key}")
-            
-            if os.environ.get('OPENAI_API_BASE'):
-                print(f"[Config] 📝 OPENAI_API_BASE: {os.environ['OPENAI_API_BASE']}")
-            
-            if os.environ.get('OPENAI_MODEL'):
-                print(f"[Config] 📝 OPENAI_MODEL: {os.environ['OPENAI_MODEL']}")
-            
             if os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY'):
                 proxy = os.environ.get('PROXY_URL') or os.environ.get('HTTP_PROXY')
                 print(f"[Config] 📝 PROXY: {proxy}")
@@ -141,18 +130,14 @@ AI_CONFIG = {
     # 默认使用的模型名称
     "default_model": "gemini-2.0-flash",
     
-    # API 配置
-    "api_base": "",  # 留空则使用 OpenAI 官方 API
-    "api_key": "",   # 留空则从环境变量读取
-    
     # Gemini 配置
     "gemini_api_key": "",
     "gemini_model": "gemini-2.0-flash",
     
     # 请求参数
     "temperature": 0.7,
-    "max_tokens": 1500,
-    "max_tokens_batch": 2000,  # 批量分析使用更大的 token 限制
+    "max_tokens": 8192,  # 单视频分析（适配 thinking model 需要更大配额）
+    "max_tokens_batch": 16384,  # 批量分析需要更多输出空间（适配 thinking model）
     "max_tokens_competitor": 2000,
     "max_tokens_trend": 1500,
     "max_tokens_hook_tag": 1000,
@@ -388,17 +373,6 @@ DEFAULT_FETCH_INTERVAL = SCHEDULER_CONFIG["fetch_interval_hours"]
 # .env 文件已在模块顶部加载，这里从 os.environ 读取并更新配置
 print("[Config] 🔄 开始应用配置到各模块...")
 
-# AI 配置
-if os.environ.get('OPENAI_API_KEY'):
-    AI_CONFIG['api_key'] = os.environ['OPENAI_API_KEY']
-    print(f"[Config] ✅ AI配置: api_key 已设置")
-if os.environ.get('OPENAI_API_BASE'):
-    AI_CONFIG['api_base'] = os.environ['OPENAI_API_BASE']
-    print(f"[Config] ✅ AI配置: api_base = {os.environ['OPENAI_API_BASE']}")
-if os.environ.get('OPENAI_MODEL'):
-    AI_CONFIG['default_model'] = os.environ['OPENAI_MODEL']
-    print(f"[Config] ✅ AI配置: default_model = {os.environ['OPENAI_MODEL']}")
-
 # Gemini 配置
 if os.environ.get('GEMINI_API_KEY'):
     AI_CONFIG['gemini_api_key'] = os.environ['GEMINI_API_KEY']
@@ -466,9 +440,6 @@ def sync_config_to_env(section: str, key: str, value: Any) -> bool:
     """
     # 配置项映射：代码中的键名 -> .env 中的键名
     config_mapping = {
-        ('AI_CONFIG', 'api_key'): 'OPENAI_API_KEY',
-        ('AI_CONFIG', 'api_base'): 'OPENAI_API_BASE',
-        ('AI_CONFIG', 'default_model'): 'OPENAI_MODEL',
         ('AI_CONFIG', 'gemini_api_key'): 'GEMINI_API_KEY',
         ('AI_CONFIG', 'gemini_model'): 'GEMINI_MODEL',
         ('SCRAPER_CONFIG', 'proxy_url'): 'PROXY_URL',

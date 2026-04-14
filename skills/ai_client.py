@@ -1,21 +1,12 @@
 """
-Shared AI client helpers for AI skills (OpenAI + Gemini).
+Gemini AI client helpers for AI skills.
 """
 
 import json
 import os
 import time
+from datetime import datetime
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
-
-import httpx
-
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OpenAI = None
-    OPENAI_AVAILABLE = False
 
 try:
     import google.generativeai as genai
@@ -30,99 +21,59 @@ from config import AI_CONFIG
 
 
 class AIClientMixin:
-    """Provide shared client setup, retry logic and response parsing."""
+    """Provide Gemini client setup, retry logic and response parsing."""
 
     def _init_ai_client(self, api_key: str = "", api_base: str = "", model: str = ""):
-        # 优先使用 Gemini
+        # Gemini 配置
         self.gemini_api_key = os.environ.get("GEMINI_API_KEY", "") or AI_CONFIG.get("gemini_api_key", "")
         self.gemini_model = os.environ.get("GEMINI_MODEL", "") or AI_CONFIG.get("gemini_model", "gemini-2.0-flash")
         
-        # OpenAI 配置
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-        self.api_base = api_base or os.environ.get("OPENAI_API_BASE", "") or AI_CONFIG.get("api_base", "")
-        self.model = model or AI_CONFIG["default_model"]
-        
-        self._client = None
         self._gemini_model = None
         self._build_client()
 
     def _build_client(self):
-        # 优先初始化 Gemini
+        # 读取代理配置
+        proxy_url = os.environ.get("PROXY_URL", "") or os.environ.get("HTTP_PROXY", "")
+        if proxy_url:
+            os.environ.setdefault("HTTP_PROXY", proxy_url)
+            os.environ.setdefault("HTTPS_PROXY", proxy_url)
+            print(f"[AI Client] 代理配置: {proxy_url}")
+
+        masked_api_key = ""
+        if self.gemini_api_key:
+            if len(self.gemini_api_key) > 12:
+                masked_api_key = f"{self.gemini_api_key[:8]}...{self.gemini_api_key[-4:]}"
+            else:
+                masked_api_key = self.gemini_api_key
+            print(f"[AI Client] API Key: {masked_api_key}")
+
+        # 初始化 Gemini
         if GEMINI_AVAILABLE and self.gemini_api_key:
             try:
                 genai.configure(api_key=self.gemini_api_key)
                 self._gemini_model = genai.GenerativeModel(self.gemini_model)
                 print(f"[AI Client] ✅ Gemini 客户端已初始化: {self.gemini_model}")
-                return
             except Exception as e:
                 print(f"[AI Client] ⚠️ Gemini 初始化失败: {e}")
-        
-        # 备选 OpenAI
-        if not (OPENAI_AVAILABLE and self.api_key):
-            self._client = None
-            return
-
-        client_kwargs: Dict[str, Any] = {
-            "api_key": self.api_key,
-            "http_client": httpx.Client(
-                event_hooks={
-                    "request": [self._log_request],
-                    "response": [self._log_response],
-                },
-                timeout=httpx.Timeout(
-                    connect=AI_CONFIG["timeout_connect"],
-                    read=AI_CONFIG["timeout_read"],
-                    write=AI_CONFIG["timeout_write"],
-                    pool=AI_CONFIG["timeout_pool"],
-                ),
-            ),
-        }
-        if self.api_base:
-            client_kwargs["base_url"] = self.api_base
-        self._client = OpenAI(**client_kwargs)
-        print(f"[AI Client] ✅ OpenAI 客户端已初始化: {self.model}")
+                self._gemini_model = None
+        else:
+            if not GEMINI_AVAILABLE:
+                print("[AI Client] ⚠️ google-generativeai 未安装")
+            if not self.gemini_api_key:
+                print("[AI Client] ⚠️ GEMINI_API_KEY 未配置")
 
     def is_available(self) -> bool:
-        # 优先检查 Gemini
-        if GEMINI_AVAILABLE and self.gemini_api_key and self._gemini_model:
-            return True
-        # 备选 OpenAI
-        return OPENAI_AVAILABLE and bool(self.api_key) and self._client is not None
+        """检查 Gemini 是否可用"""
+        return GEMINI_AVAILABLE and bool(self.gemini_api_key) and self._gemini_model is not None
 
     def update_config(self, api_key: str, api_base: str = "", model: str = ""):
-        self.api_key = api_key
-        if api_base or api_base == "":
-            self.api_base = api_base
+        """更新配置（保持接口兼容）"""
+        # api_key 参数用于 Gemini API Key
+        if api_key:
+            self.gemini_api_key = api_key
         if model:
-            self.model = model
+            self.gemini_model = model
         self._build_client()
-
-    def _log_request(self, request: httpx.Request):
-        if not AI_CONFIG.get("debug_api_logging", False):
-            return
-        print("\n[AI Client] ===== Request =====")
-        print(f"[AI Client] Method: {request.method}")
-        print(f"[AI Client] URL: {request.url}")
-        print(f"[AI Client] Headers: {dict(request.headers)}")
-        try:
-            body = json.loads(request.content.decode("utf-8"))
-            print(f"[AI Client] Body: {json.dumps(body, ensure_ascii=False, indent=2)}")
-        except Exception:
-            print(f"[AI Client] Body: {request.content[:500]}")
-        print("[AI Client] ====================\n")
-
-    def _log_response(self, response: httpx.Response):
-        if not AI_CONFIG.get("debug_api_logging", False):
-            return
-        print("\n[AI Client] ===== Response =====")
-        print(f"[AI Client] Status Code: {response.status_code}")
-        print(f"[AI Client] Headers: {dict(response.headers)}")
-        try:
-            body = response.json()
-            print(f"[AI Client] Body: {json.dumps(body, ensure_ascii=False, indent=2)}")
-        except Exception:
-            print(f"[AI Client] Body: {response.text[:500]}")
-        print("[AI Client] =====================\n")
 
     def _call_api_with_retry(
         self,
@@ -130,56 +81,8 @@ class AIClientMixin:
         max_retries: Optional[int] = None,
         **kwargs,
     ) -> Optional[Any]:
-        # 优先使用 Gemini
-        if self._gemini_model:
-            return self._call_gemini_with_retry(messages, max_retries, **kwargs)
-        
-        # 备选 OpenAI
-        if not self._client:
-            return None
-
-        retries = max_retries or AI_CONFIG["max_retries"]
-        last_error = None
-
-        for attempt in range(retries):
-            try:
-                if attempt > 0:
-                    wait_time = self._get_retry_wait_seconds(attempt, last_error)
-                    print(f"[AI Client] Retry {attempt + 1}/{retries} in {wait_time}s")
-                    time.sleep(wait_time)
-
-                return self._client.chat.completions.create(
-                    model=self.model,
-                    messages=self._normalize_messages(messages, content_mode="text"),
-                    **kwargs,
-                )
-            except Exception as exc:
-                last_error = exc
-                print(f"[AI Client] Attempt {attempt + 1} failed: {exc}")
-
-                # Some OpenAI-compatible providers require content blocks instead of plain strings.
-                if self._should_retry_with_content_blocks(exc):
-                    try:
-                        print("[AI Client] Retrying with content blocks format")
-                        return self._client.chat.completions.create(
-                            model=self.model,
-                            messages=self._normalize_messages(messages, content_mode="blocks"),
-                            **kwargs,
-                        )
-                    except Exception as block_exc:
-                        last_error = block_exc
-                        print(f"[AI Client] Content blocks retry failed: {block_exc}")
-
-                if self._should_retry_with_raw_request(exc):
-                    raw_response = self._call_raw_chat_completion(messages, **kwargs)
-                    if raw_response is not None:
-                        return raw_response
-
-                if not self._is_retryable_error(exc) or attempt >= retries - 1:
-                    break
-
-        print(f"[AI Client] API call failed: {last_error}")
-        return None
+        """调用 Gemini API 带重试"""
+        return self._call_gemini_with_retry(messages, max_retries, **kwargs)
 
     def _call_gemini_with_retry(
         self,
@@ -196,39 +99,60 @@ class AIClientMixin:
 
         # 转换 messages 为 Gemini 格式
         prompt = self._messages_to_gemini_prompt(messages)
-        
+        max_tokens = kwargs.get('max_tokens', AI_CONFIG['max_tokens'])
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        start_time = time.time()
+        print(f"[AI Client] [{timestamp}] 开始 Gemini API 调用 | 模型: {self.gemini_model} | Prompt长度: {len(prompt)}字符 | max_tokens: {max_tokens}")
+
         # 获取生成配置
-        generation_config = genai.types.GenerationConfig(
-            temperature=kwargs.get('temperature', AI_CONFIG['temperature']),
-            max_output_tokens=kwargs.get('max_tokens', AI_CONFIG['max_tokens']),
-        )
+        try:
+            generation_config = genai.types.GenerationConfig(
+                temperature=kwargs.get('temperature', AI_CONFIG['temperature']),
+                max_output_tokens=max_tokens,
+                thinking_config=genai.types.ThinkingConfig(
+                    thinking_budget=1024  # 限制思考token为1024，避免占用太多输出配额
+                ),
+            )
+        except (AttributeError, TypeError):
+            # 旧版 SDK 不支持 thinking_config
+            generation_config = genai.types.GenerationConfig(
+                temperature=kwargs.get('temperature', AI_CONFIG['temperature']),
+                max_output_tokens=max_tokens,
+            )
 
         for attempt in range(retries):
             try:
                 if attempt > 0:
                     wait_time = self._get_retry_wait_seconds(attempt, last_error)
-                    print(f"[AI Client] Gemini Retry {attempt + 1}/{retries} in {wait_time}s")
+                    retry_timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"[AI Client] [{retry_timestamp}] Gemini Retry {attempt + 1}/{retries} in {wait_time}s")
                     time.sleep(wait_time)
 
                 response = self._gemini_model.generate_content(
                     prompt,
                     generation_config=generation_config,
                 )
-                
+
                 if response.text:
+                    elapsed = time.time() - start_time
+                    response_text = response.text if hasattr(response, 'text') else ''
+                    success_timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"[AI Client] [{success_timestamp}] 响应成功 | 耗时: {elapsed:.1f}s | 响应长度: {len(response_text)}字符")
                     return response
                 else:
                     print(f"[AI Client] Gemini returned empty response")
                     return None
-                    
+
             except Exception as exc:
                 last_error = exc
-                print(f"[AI Client] Gemini Attempt {attempt + 1} failed: {exc}")
-                
+                error_timestamp = datetime.now().strftime("%H:%M:%S")
+                print(f"[AI Client] [{error_timestamp}] Gemini Attempt {attempt + 1} failed: {exc}")
+
                 if not self._is_retryable_error(exc) or attempt >= retries - 1:
                     break
 
-        print(f"[AI Client] Gemini API call failed: {last_error}")
+        failed_timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[AI Client] [{failed_timestamp}] Gemini API call failed: {last_error}")
         return None
 
     def _messages_to_gemini_prompt(self, messages: List[Dict[str, Any]]) -> str:
@@ -275,146 +199,27 @@ class AIClientMixin:
             for token in ("429", "rate limit", "too many", "500", "502", "503", "504", "connection", "timeout", "network")
         )
 
-    def _should_retry_with_content_blocks(self, error: Exception) -> bool:
-        error_text = str(error).lower()
-        return "unsupported content type" in error_text or "content type" in error_text
-
-    def _should_retry_with_raw_request(self, error: Exception) -> bool:
-        error_text = str(error).lower()
-        return any(
-            token in error_text
-            for token in (
-                "unsupported content type",
-                "content type",
-                "invalid_request_error",
-                "400",
-                "badrequest",
-            )
-        )
-
-    def _call_raw_chat_completion(self, messages: List[Dict[str, Any]], **kwargs) -> Optional[Dict[str, Any]]:
-        if not self.api_key:
-            return None
-
-        url = self._get_chat_completions_url()
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-        timeout = httpx.Timeout(
-            connect=AI_CONFIG["timeout_connect"],
-            read=AI_CONFIG["timeout_read"],
-            write=AI_CONFIG["timeout_write"],
-            pool=AI_CONFIG["timeout_pool"],
-        )
-        variants = [
-            self._normalize_messages(messages, content_mode="text"),
-            self._merge_messages_to_single_user(messages),
-        ]
-
-        for index, variant in enumerate(variants, start=1):
-            payload = self._build_raw_payload(variant, **kwargs)
-            try:
-                print(f"[AI Client] Retrying with raw HTTP payload (variant {index})")
-                with httpx.Client(timeout=timeout) as client:
-                    response = client.post(url, headers=headers, json=payload)
-                    response.raise_for_status()
-                    return response.json()
-            except Exception as raw_exc:
-                print(f"[AI Client] Raw HTTP retry failed (variant {index}): {raw_exc}")
-
-        return None
-
-    def _get_chat_completions_url(self) -> str:
-        base_url = (self.api_base or "https://api.openai.com/v1").rstrip("/") + "/"
-        return urljoin(base_url, "chat/completions")
-
-    def _build_raw_payload(self, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-        }
-        if kwargs.get("temperature") is not None:
-            payload["temperature"] = kwargs["temperature"]
-        if kwargs.get("max_tokens") is not None:
-            payload["max_tokens"] = kwargs["max_tokens"]
-        return payload
-
-    def _merge_messages_to_single_user(self, messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-        normalized = self._normalize_messages(messages, content_mode="text")
-        parts: List[str] = []
-        for message in normalized:
-            role = message.get("role", "user")
-            content = message.get("content", "")
-            if not content:
-                continue
-            if role == "system":
-                parts.append(f"[System Instruction]\n{content}")
-            elif role == "assistant":
-                parts.append(f"[Assistant Context]\n{content}")
-            else:
-                parts.append(str(content))
-        return [{"role": "user", "content": "\n\n".join(parts)}]
-
-    def _normalize_messages(self, messages: List[Dict[str, Any]], content_mode: str = "text") -> List[Dict[str, Any]]:
-        normalized: List[Dict[str, Any]] = []
-        for message in messages:
-            normalized_message = dict(message)
-            content = normalized_message.get("content", "")
-
-            if content_mode == "blocks":
-                if isinstance(content, str):
-                    normalized_message["content"] = [{"type": "text", "text": content}]
-                elif isinstance(content, list):
-                    parts = []
-                    for item in content:
-                        if isinstance(item, dict) and item.get("type") == "text":
-                            parts.append(item)
-                        elif isinstance(item, str):
-                            parts.append({"type": "text", "text": item})
-                    normalized_message["content"] = parts
-            else:
-                if isinstance(content, list):
-                    text_parts = []
-                    for item in content:
-                        if isinstance(item, dict) and item.get("type") == "text":
-                            text_parts.append(item.get("text", ""))
-                        elif isinstance(item, str):
-                            text_parts.append(item)
-                    normalized_message["content"] = "\n".join(part for part in text_parts if part)
-                elif content is None:
-                    normalized_message["content"] = ""
-
-            normalized.append(normalized_message)
-        return normalized
+    # finish_reason 映射表（数字 -> 可读名称）
+    FINISH_REASON_MAP = {0: "UNSPECIFIED", 1: "STOP", 2: "MAX_TOKENS", 3: "SAFETY", 4: "RECITATION", 5: "OTHER"}
 
     def _extract_response_text(self, response: Any) -> str:
         if isinstance(response, str):
             return response
         
         # 处理 Gemini 响应
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            finish_reason = getattr(candidate, 'finish_reason', 'unknown')
+            # 将数字映射为可读名称
+            finish_reason_name = self.FINISH_REASON_MAP.get(finish_reason, f"UNKNOWN({finish_reason})")
+            print(f"[AI Client] 响应详情 | candidates: {len(response.candidates)} | finish_reason: {finish_reason_name}")
+            # 如果是 MAX_TOKENS，打印警告
+            if finish_reason == 2:
+                print(f"[AI Client] ⚠️ 警告: 输出被截断 (MAX_TOKENS)，建议增大 max_tokens 配置")
+
         if hasattr(response, 'text'):
             return response.text
         
-        # 处理 OpenAI 响应
-        if hasattr(response, "choices"):
-            choice = response.choices[0]
-            message = getattr(choice, "message", None)
-            if message is not None:
-                content = getattr(message, "content", "")
-                if isinstance(content, str):
-                    return content
-                if isinstance(content, list):
-                    parts = []
-                    for item in content:
-                        if hasattr(item, "text"):
-                            parts.append(item.text)
-                        elif isinstance(item, dict) and item.get("type") == "text":
-                            parts.append(item.get("text", ""))
-                    return "".join(parts)
-        if isinstance(response, dict) and "choices" in response:
-            return response["choices"][0]["message"]["content"]
         print(f"[AI Client] Unknown response format: {type(response)}")
         return ""
 

@@ -103,56 +103,7 @@ class SettingsPage(QWidget):
         gemini_model_label.setStyleSheet(LABEL_STYLE)
         ai_form.addRow(gemini_model_label, self.gemini_model_input)
 
-        # 分隔线
-        separator = QLabel("─" * 60)
-        separator.setStyleSheet("color: #4a5568; font-size: 12px;")
-        ai_form.addRow("", separator)
-
-        # OpenAI API Key
-        self.api_key_input = QLineEdit()
-        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key_input.setPlaceholderText("sk-...")
-        self.api_key_input.setStyleSheet(INPUT_STYLE)
-
-        api_key_row = QHBoxLayout()
-        api_key_row.addWidget(self.api_key_input)
-        show_key_btn = QPushButton("显示")
-        show_key_btn.setFixedSize(36, 36)
-        show_key_btn.setStyleSheet(secondary_button_style())
-        show_key_btn.clicked.connect(self._toggle_api_key_visibility)
-        api_key_row.addWidget(show_key_btn)
-
-        api_key_label = QLabel("OpenAI API Key")
-        api_key_label.setStyleSheet(LABEL_STYLE)
-        ai_form.addRow(api_key_label, api_key_row)
-
-        api_hint = QLabel(f"用于AI流量钩子分析功能。支持OpenAI兼容接口，默认使用{DEFAULT_AI_MODEL}模型。")
-        api_hint.setStyleSheet(HINT_STYLE)
-        api_hint.setWordWrap(True)
-        ai_form.addRow("", api_hint)
-
-        # API Base URL
-        self.api_base_input = QLineEdit()
-        self.api_base_input.setPlaceholderText("例如: https://api.openai.com/v1 （留空使用默认值）")
-        self.api_base_input.setStyleSheet(INPUT_STYLE)
-        api_base_label = QLabel("API Base URL")
-        api_base_label.setStyleSheet(LABEL_STYLE)
-        ai_form.addRow(api_base_label, self.api_base_input)
-
-        api_base_hint = QLabel("如果使用第三方API服务（如Azure、本地部署等），请填写对应的API地址。OpenAI官方接口可留空。")
-        api_base_hint.setStyleSheet(HINT_STYLE)
-        api_base_hint.setWordWrap(True)
-        ai_form.addRow("", api_base_hint)
-
-        # 模型名称
-        self.model_input = QLineEdit()
-        self.model_input.setPlaceholderText(DEFAULT_AI_MODEL)
-        self.model_input.setStyleSheet(INPUT_STYLE + "QLineEdit { min-width: 200px; }")
-        model_label = QLabel("模型名称")
-        model_label.setStyleSheet(LABEL_STYLE)
-        ai_form.addRow(model_label, self.model_input)
-
-        model_hint = QLabel(f"默认使用{DEFAULT_AI_MODEL}。支持gpt-5-chat-latest等OpenAI兼容模型，或第三方模型名称。")
+        model_hint = QLabel(f"默认使用gemini-2.0-flash。支持gemini-2.0-pro, gemini-1.5-pro等模型。")
         model_hint.setStyleSheet(HINT_STYLE)
         model_hint.setWordWrap(True)
         ai_form.addRow("", model_hint)
@@ -259,9 +210,6 @@ class SettingsPage(QWidget):
         else:
             input_widget.setEchoMode(QLineEdit.EchoMode.Password)
 
-    def _toggle_api_key_visibility(self):
-        self._toggle_password_visibility(self.api_key_input)
-
     def _browse_download_path(self):
         path = QFileDialog.getExistingDirectory(self, "选择下载目录")
         if path:
@@ -269,8 +217,6 @@ class SettingsPage(QWidget):
 
     def _load_settings(self):
         """从环境变量加载设置"""
-        # 直接从环境变量读取配置
-        
         # Gemini 配置
         gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
         self.gemini_api_key_input.setText(gemini_api_key)
@@ -279,19 +225,6 @@ class SettingsPage(QWidget):
         gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
         self.gemini_model_input.setText(gemini_model)
         print(f"[Settings] 加载 Gemini Model: {gemini_model}")
-        
-        # OpenAI 配置
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-        self.api_key_input.setText(api_key)
-        print(f"[Settings] 加载 OpenAI API Key: {'已设置' if api_key else '未设置'}")
-        
-        api_base = os.environ.get("OPENAI_API_BASE", "")
-        self.api_base_input.setText(api_base)
-        print(f"[Settings] 加载 API Base: {api_base or '默认'}")
-        
-        model = os.environ.get("OPENAI_MODEL", DEFAULT_AI_MODEL)
-        self.model_input.setText(model)
-        print(f"[Settings] 加载 Model: {model}")
         
         # 加载自动抓取设置
         auto_fetch = os.environ.get("AUTO_FETCH_ENABLED", "0") == "1"
@@ -324,10 +257,6 @@ class SettingsPage(QWidget):
         gemini_api_key = self.gemini_api_key_input.text().strip()
         gemini_model = self.gemini_model_input.text().strip() or "gemini-2.0-flash"
         
-        # OpenAI 配置
-        api_key = self.api_key_input.text().strip()
-        api_base = self.api_base_input.text().strip()
-        model = self.model_input.text().strip() or DEFAULT_AI_MODEL
         auto_fetch = self.auto_fetch_check.isChecked()
         interval = self.interval_spin.value()
         max_videos = self.max_videos_spin.value()
@@ -337,9 +266,6 @@ class SettingsPage(QWidget):
         # 同步到 .env 文件和内存配置
         sync_config_to_env('AI_CONFIG', 'gemini_api_key', gemini_api_key)
         sync_config_to_env('AI_CONFIG', 'gemini_model', gemini_model)
-        sync_config_to_env('AI_CONFIG', 'api_key', api_key)
-        sync_config_to_env('AI_CONFIG', 'api_base', api_base)
-        sync_config_to_env('AI_CONFIG', 'default_model', model)
         sync_config_to_env('SCHEDULER_CONFIG', 'auto_fetch_enabled', auto_fetch)
         sync_config_to_env('SCHEDULER_CONFIG', 'fetch_interval_hours', interval)
         sync_config_to_env('SCRAPER_CONFIG', 'max_videos_per_fetch', max_videos)
@@ -349,9 +275,6 @@ class SettingsPage(QWidget):
         # 更新内存中的配置
         AI_CONFIG['gemini_api_key'] = gemini_api_key
         AI_CONFIG['gemini_model'] = gemini_model
-        AI_CONFIG['api_key'] = api_key
-        AI_CONFIG['api_base'] = api_base
-        AI_CONFIG['default_model'] = model
         SCHEDULER_CONFIG['auto_fetch_enabled'] = auto_fetch
         SCHEDULER_CONFIG['fetch_interval_hours'] = interval
         SCRAPER_CONFIG['max_videos_per_fetch'] = max_videos
@@ -359,12 +282,12 @@ class SettingsPage(QWidget):
             SCRAPER_CONFIG['download_path'] = download_path
         SCRAPER_CONFIG['proxy_url'] = proxy_url
 
-        # 更新AI分析器的API Key、API地址和模型（使用skill模块的update_config方法）
-        if api_key or api_base or model:
+        # 更新AI分析器的API Key和模型（使用skill模块的update_config方法）
+        if gemini_api_key or gemini_model:
             self.main_window.ai_analyzer.update_config(
-                api_key=api_key if api_key else self.main_window.ai_analyzer.api_key,
-                api_base=api_base,
-                model=model
+                api_key=gemini_api_key if gemini_api_key else self.main_window.ai_analyzer.gemini_api_key,
+                api_base="",
+                model=gemini_model
             )
 
         # 更新调度器
