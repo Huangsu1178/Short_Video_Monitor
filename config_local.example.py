@@ -1,9 +1,19 @@
 """
-TikTok Monitor - 本地配置模板
-复制此文件为 config_local.py 并填入你的配置信息
+TikTok Monitor - 本地配置模板（可选）
+
+⚠️ 推荐使用 .env 文件进行配置（见 .env.example）
+此文件仅用于向后兼容，新用户建议使用 .env 文件
 
 注意：config_local.py 已加入 .gitignore，不会被提交到版本控制系统
 """
+
+# ==================== 使用说明 ====================
+# 推荐方式：使用 .env 文件（更简单直观）
+# 1. 复制 .env.example 为 .env
+# 2. 编辑 .env 文件，填入你的配置
+#
+# 此文件（config_local.py）仅在你需要更多自定义配置时使用
+# ====================================================
 
 # ==================== AI 配置 ====================
 # 从环境变量读取或使用下面的配置
@@ -31,16 +41,3 @@ SCRAPER_LOCAL_CONFIG = {
     # 例如: "http://127.0.0.1:7890"
     "proxy_url": "",
 }
-
-
-# ==================== 使用方式 ====================
-# 1. 复制此文件为 config_local.py
-# 2. 填入你的 API Key 和代理配置
-# 3. 在 config.py 中导入并使用：
-#
-# try:
-#     from config_local import AI_LOCAL_CONFIG, SCRAPER_LOCAL_CONFIG
-#     AI_CONFIG.update(AI_LOCAL_CONFIG)
-#     SCRAPER_CONFIG.update(SCRAPER_LOCAL_CONFIG)
-# except ImportError:
-#     pass  # config_local.py 不存在，使用默认配置
