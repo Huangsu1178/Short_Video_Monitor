@@ -47,15 +47,15 @@
 
 ## 配置方式
 
-本项目支持三种配置方式，优先级从高到低：
+本项目**推荐使用 `.env` 文件**进行配置，简单直观。
 
-1. `.env` 文件（推荐）
-2. `config_local.py` 文件
-3. 系统环境变量
+### 推荐方式：使用 .env 文件
 
-### 方式一：使用 .env 文件（推荐）
-
-**优点**：简单直观，所有配置集中管理
+**优点**：
+- ✅ 简单直观，所有配置集中管理
+- ✅ 支持所有主要配置项
+- ✅ 跨平台兼容性好
+- ✅ 易于版本控制（模板文件）
 
 **步骤**：
 
@@ -72,53 +72,13 @@
 
 3. 保存后运行程序即可
 
-### 方式二：使用 config_local.py 文件
+### 可选方式：使用 config_local.py 文件
 
-**优点**：支持更多配置项，包括代理设置
+**适用场景**：
+- 需要更多 Python 级别自定义配置
+- 旧版本迁移（向后兼容）
 
-**步骤**：
-
-1. 复制模板文件：
-   ```bash
-   cp config_local.example.py config_local.py
-   ```
-
-2. 编辑 `config_local.py` 文件：
-   ```python
-   AI_LOCAL_CONFIG = {
-       "api_key": "your-actual-api-key-here",
-       "api_base": "",  # 留空使用官方 API
-       "default_model": "gpt-5-chat-latest",
-   }
-   
-   SCRAPER_LOCAL_CONFIG = {
-       "proxy_url": "",  # 如需要代理，填入代理地址
-   }
-   ```
-
-3. 保存后运行程序即可
-
-### 方式三：使用环境变量
-
-**优点**：适合生产环境或 Docker 部署
-
-**Windows (PowerShell)**：
-```powershell
-$env:OPENAI_API_KEY="your-api-key-here"
-python main.py
-```
-
-**Windows (CMD)**：
-```cmd
-set OPENAI_API_KEY=your-api-key-here
-python main.py
-```
-
-**Linux/Mac**：
-```bash
-export OPENAI_API_KEY="your-api-key-here"
-python main.py
-```
+> ⚠️ **注意**：新用户强烈建议使用 `.env` 文件，`config_local.py` 仅用于向后兼容。
 
 ---
 
@@ -187,8 +147,8 @@ HTTPS_PROXY=http://127.0.0.1:7890
 ### Q1: 提示 "API Key 未配置" 怎么办？
 
 确保你已经：
-1. 复制了配置模板文件（`.env` 或 `config_local.py`）
-2. 在文件中填入了有效的 API Key
+1. 复制了 `.env.example` 为 `.env`
+2. 在 `.env` 文件中填入了有效的 API Key
 3. 保存文件后重新启动程序
 
 ### Q2: 使用第三方代理如何配置？
@@ -196,13 +156,6 @@ HTTPS_PROXY=http://127.0.0.1:7890
 在 `.env` 文件中添加：
 ```env
 OPENAI_API_BASE=https://your-proxy.com/v1
-```
-
-或在 `config_local.py` 中：
-```python
-AI_LOCAL_CONFIG = {
-    "api_base": "https://your-proxy.com/v1",
-}
 ```
 
 ### Q3: 配置文件应该放在哪里？
@@ -214,27 +167,25 @@ tiktok_monitor/
 ├── main.py
 ├── config.py
 ├── .env              ← 放在这里
-├── config_local.py   ← 或放在这里
 └── ...
 ```
 
 ### Q4: 为什么我的配置没有生效？
 
 检查以下几点：
-1. 文件名是否正确（`.env` 或 `config_local.py`）
+1. 文件名是否正确（`.env`）
 2. 文件是否在项目根目录
 3. 是否正确保存了文件
 4. 是否重新启动了程序
-5. 查看控制台是否有加载配置的提示信息
+5. 查看控制台是否有 "[Config] 已加载 .env 配置文件" 的提示
 
-### Q5: 可以同时使用多种配置方式吗？
+### Q5: 可以同时使用 .env 和 config_local.py 吗？
 
-可以，优先级为：
-1. `.env` 文件（最高）
-2. `config_local.py` 文件
-3. 系统环境变量（最低）
+可以，`.env` 文件的优先级更高。如果两者都存在：
+- `.env` 中的配置会先加载
+- `config_local.py` 中的配置会覆盖 `.env` 的同名配置
 
-高优先级的配置会覆盖低优先级的配置。
+> 💡 **建议**：只使用一种配置方式，避免混淆。推荐使用 `.env`。
 
 ---
 

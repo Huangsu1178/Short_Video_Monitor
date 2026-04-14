@@ -247,7 +247,34 @@ DEFAULT_FETCH_INTERVAL = SCHEDULER_CONFIG["fetch_interval_hours"]
 
 
 # ==================== 加载本地配置（不被版本控制）====================
-# 尝试加载 config_local.py 中的配置（包含 API Key 等敏感信息）
+# 优先级：.env 文件 > config_local.py > 环境变量 > 默认值
+
+# 方式一：从 .env 文件加载（推荐）
+try:
+    from dotenv import load_dotenv
+    import os
+    
+    # 加载 .env 文件
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        print("[Config] 已加载 .env 配置文件")
+    
+    # 从环境变量更新 AI 配置
+    if os.environ.get('OPENAI_API_KEY'):
+        AI_CONFIG['api_key'] = os.environ['OPENAI_API_KEY']
+    if os.environ.get('OPENAI_API_BASE'):
+        AI_CONFIG['api_base'] = os.environ['OPENAI_API_BASE']
+    if os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY'):
+        SCRAPER_CONFIG['proxy_url'] = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+    if os.environ.get('LOG_LEVEL'):
+        LOGGING_CONFIG['level'] = os.environ['LOG_LEVEL']
+        
+except ImportError:
+    # python-dotenv 未安装，跳过 .env 加载
+    pass
+
+# 方式二：从 config_local.py 加载（向后兼容）
 try:
     from config_local import AI_LOCAL_CONFIG, SCRAPER_LOCAL_CONFIG
     AI_CONFIG.update(AI_LOCAL_CONFIG)
