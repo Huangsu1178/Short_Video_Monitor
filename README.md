@@ -38,7 +38,34 @@ python main.py
 
 ### 配置说明
 
-首次运行后，进入「设置」页面配置：
+**⚠️ 首次使用必须先配置 API Key！**
+
+本项目提供两种配置方式（任选其一）：
+
+#### 方式一：使用 .env 文件（推荐）
+
+```bash
+# 1. 复制配置模板
+cp .env.example .env
+
+# 2. 编辑 .env 文件，填入你的 OpenAI API Key
+# OPENAI_API_KEY=your-api-key-here
+```
+
+#### 方式二：使用 config_local.py 文件
+
+```bash
+# 1. 复制配置模板
+cp config_local.example.py config_local.py
+
+# 2. 编辑 config_local.py 文件，填入你的配置
+```
+
+📖 **详细配置指南**：请查阅 [SETUP_GUIDE.md](SETUP_GUIDE.md)
+
+#### 应用内设置
+
+配置好 API Key 后，进入应用「设置」页面可配置：
 
 | 配置项 | 说明 | 是否必须 |
 |--------|------|----------|
