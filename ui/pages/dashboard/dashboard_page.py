@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.platforms import platform_label
-from ui.theme import (
+from ui.components.theme import (
     ACCENT,
     VIOLET,
     body_text_style,
@@ -130,6 +130,7 @@ class DashboardPage(QWidget):
         self.log_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.log_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.log_table.setAlternatingRowColors(True)
+        self.log_table.setWordWrap(True)  # 启用文本换行
         self.log_table.setMinimumHeight(280)
         main_layout.addWidget(self.log_table)
 
@@ -143,6 +144,7 @@ class DashboardPage(QWidget):
         self.hot_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.hot_table.verticalHeader().setVisible(False)
         self.hot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.hot_table.setWordWrap(True)  # 启用文本换行
         self.hot_table.setMinimumHeight(220)
         main_layout.addWidget(self.hot_table)
 

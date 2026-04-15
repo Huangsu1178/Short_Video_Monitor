@@ -26,6 +26,7 @@ ACCENT_SOFT = "#fff1ec"
 SUCCESS = "#52c58b"
 WARNING = "#f2b265"
 DANGER = "#f47f8b"
+DANGER_HOVER = "#f6959e"
 INFO = "#63a4ff"
 VIOLET = "#7c8cff"
 TEAL = "#52c7b8"
@@ -148,6 +149,43 @@ def secondary_button_style() -> str:
     """
 
 
+def table_button_style() -> str:
+    """表格内使用的小按钮样式"""
+    return f"""
+    QPushButton {{
+        background-color: {BG_SURFACE};
+        color: {TEXT_PRIMARY};
+        border: 1px solid {BORDER};
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QPushButton:hover {{
+        background-color: {BG_SURFACE_HOVER};
+        border-color: {BORDER_STRONG};
+    }}
+    """
+
+
+def table_danger_button_style() -> str:
+    """表格内使用的危险操作按钮样式"""
+    return f"""
+    QPushButton {{
+        background-color: transparent;
+        color: {DANGER};
+        border: 1px solid {DANGER};
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QPushButton:hover {{
+        background-color: rgba(244, 127, 139, 0.12);
+    }}
+    """
+
+
 def accent_button_style() -> str:
     return f"""
     QPushButton {{
@@ -211,7 +249,7 @@ def table_style(alternate: bool = True) -> str:
         font-size: 13px;
     }}
     QTableWidget::item {{
-        padding: 10px 12px;
+        padding: 6px 8px;
         border-bottom: 1px solid {BORDER};
     }}
     QTableWidget::item:selected {{
@@ -220,7 +258,7 @@ def table_style(alternate: bool = True) -> str:
     QHeaderView::section {{
         background-color: {BG_SURFACE};
         color: {TEXT_SECONDARY};
-        padding: 11px 12px;
+        padding: 8px 10px;
         border: none;
         border-bottom: 1px solid {BORDER};
         font-size: 12px;
