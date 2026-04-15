@@ -2,9 +2,6 @@
 TikTok Monitor - Data View Page
 """
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from PyQt6.QtGui import QAction, QColor
 from PyQt6.QtWidgets import (

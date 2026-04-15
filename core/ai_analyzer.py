@@ -5,11 +5,8 @@ TikTok Monitor - AI Analyzer Module
 此模块保留作为向后兼容，新功能请使用 skills.TikTokAIAnalysisSkill
 """
 import warnings
-import sys
-import os
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # 导入新的skill模块
 from skills.tiktok_ai_analysis import TikTokAIAnalysisSkill

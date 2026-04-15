@@ -2,11 +2,6 @@
 TikTok Monitor - Influencer Management Page
 Supports TikTok / Douyin account management.
 """
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,

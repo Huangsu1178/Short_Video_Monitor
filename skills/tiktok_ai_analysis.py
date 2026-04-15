@@ -3,13 +3,10 @@ TikTok Monitor - TikTok AI Analysis Skill
 """
 
 import json
-import os
-import sys
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import AI_CONFIG
 
 from .ai_client import AIClientMixin

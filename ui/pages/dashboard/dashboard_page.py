@@ -1,11 +1,6 @@
 """
 Dashboard page for multi-platform monitoring.
 """
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QFrame,
