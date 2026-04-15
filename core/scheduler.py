@@ -2,12 +2,8 @@
 TikTok Monitor - Scheduler Module
 基于APScheduler的定时任务调度模块
 """
-import sys
-import os
 from datetime import datetime
 from typing import Callable, Optional
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger

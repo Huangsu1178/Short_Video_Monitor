@@ -9,13 +9,10 @@ TikTok Monitor - Skill Registry
 4. Skill 执行编排
 """
 
-import os
-import sys
 from typing import Dict, Any, List, Optional, Type
 from datetime import datetime
 
 # 导入统一配置
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import DEFAULT_AI_MODEL
 
 from .tiktok_ai_analysis import TikTokAIAnalysisSkill

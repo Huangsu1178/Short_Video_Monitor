@@ -10,13 +10,10 @@ TikTok Monitor - Format Research Skill
 """
 
 import json
-import os
-import sys
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 # 导入统一配置
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import DEFAULT_AI_MODEL, AI_CONFIG
 from skills.ai_client import AIClientMixin
 
