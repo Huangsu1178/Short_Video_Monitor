@@ -60,6 +60,7 @@ QScrollArea {{
 class BatchAnalysisWorker(QThread):
     finished = pyqtSignal(object, list, str)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(str)
 
     def __init__(self, analyzer, videos, username: str = ""):
         super().__init__()
@@ -69,7 +70,10 @@ class BatchAnalysisWorker(QThread):
 
     def run(self):
         try:
+            self.progress.emit(f"[1/3] Preparing {len(self.videos)} sample videos")
+            self.progress.emit("[2/3] Calling the AI model for batch insights")
             result = self.analyzer.analyze_batch(self.videos, self.username)
+            self.progress.emit("[3/3] Formatting the batch analysis result")
             self.finished.emit(result, self.videos, self.username)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -352,7 +356,11 @@ class BatchAnalysisPage(QWidget):
         self._worker = BatchAnalysisWorker(self.main_window.ai_analyzer, videos or [], username)
         self._worker.finished.connect(self._handle_result)
         self._worker.failed.connect(self._handle_error)
+        self._worker.progress.connect(self._handle_progress)
         self._worker.start()
+
+    def _handle_progress(self, message: str):
+        self._show_status(message, "#ffd38b")
 
     def _handle_result(self, result, videos, username: str):
         self._set_busy(False)
@@ -389,6 +397,8 @@ class BatchAnalysisPage(QWidget):
             }}
             """
         )
+        if hasattr(self.main_window, "update_runtime_status"):
+            self.main_window.update_runtime_status("Batch Analysis", text, color)
 
     def _render_loading(self):
         panel = EmptyState(

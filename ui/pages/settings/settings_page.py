@@ -295,11 +295,21 @@ class SettingsPage(QWidget):
             if not scheduler.is_running():
                 scheduler.start()
             scheduler.add_global_fetch_job(self.main_window.fetch_all_active, interval)
+            if hasattr(self.main_window, "set_idle_status"):
+                self.main_window.set_idle_status(f"Auto fetch every {interval:g}h")
+            self.main_window.status_label.setStyleSheet("")
             self.main_window.status_label.setText(f"● 自动监控中 ({interval}h)")
             self.main_window.status_label.setStyleSheet(f"color: {SUCCESS}; font-size: 12px; padding: 8px;")
+            if hasattr(self.main_window, "set_idle_status"):
+                self.main_window.set_idle_status(f"Auto fetch every {interval:g}h")
         else:
             scheduler.remove_job("global_fetch")
+            if hasattr(self.main_window, "set_idle_status"):
+                self.main_window.set_idle_status("Manual mode")
+            self.main_window.status_label.setStyleSheet("")
             self.main_window.status_label.setText("● 就绪（手动模式）")
             self.main_window.status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 12px; padding: 8px;")
+            if hasattr(self.main_window, "set_idle_status"):
+                self.main_window.set_idle_status("Manual mode")
 
         QMessageBox.information(self, "保存成功", "设置已保存并生效！")

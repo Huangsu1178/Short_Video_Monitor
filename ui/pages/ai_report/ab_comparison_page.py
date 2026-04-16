@@ -63,6 +63,7 @@ class ABComparisonWorker(QThread):
     """AB对比分析工作线程"""
     finished = pyqtSignal(object, dict)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(str)
 
     def __init__(self, analyzer, group_a_videos, group_b_videos, group_a_label, group_b_label):
         super().__init__()
@@ -74,10 +75,15 @@ class ABComparisonWorker(QThread):
 
     def run(self):
         try:
+            self.progress.emit(
+                f"[1/3] Preparing AB samples (A: {len(self.group_a_videos)} / B: {len(self.group_b_videos)})"
+            )
+            self.progress.emit("[2/3] Calling the AI model for AB diagnosis")
             result = self.analyzer.analyze_ab_comparison(
                 self.group_a_videos, self.group_b_videos,
                 self.group_a_label, self.group_b_label
             )
+            self.progress.emit("[3/3] Formatting the AB comparison result")
             payload = {
                 "group_a_videos": self.group_a_videos,
                 "group_b_videos": self.group_b_videos,
@@ -221,6 +227,22 @@ class ABComparisonPage(QWidget):
         self.video_list_manager.videos_changed.connect(self._on_add_videos_requested)
         self.video_list_manager.analyze_requested.connect(self._run_analysis_with_videos)
         layout.addWidget(self.video_list_manager)
+
+        self.status_badge = QLabel("准备就绪")
+        self.status_badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: {TEXT_SECONDARY};
+                border: 1px solid {BORDER};
+                border-radius: 12px;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            """
+        )
+        layout.addWidget(self.status_badge)
         
         return controls
 
@@ -378,8 +400,12 @@ class ABComparisonPage(QWidget):
         )
         self._worker.finished.connect(self._handle_result)
         self._worker.failed.connect(self._handle_error)
+        self._worker.progress.connect(self._handle_progress)
         self._worker.start()
-    
+
+    def _handle_progress(self, message: str):
+        self._show_status(message, "#ffd38b")
+
     def _handle_result(self, result, payload):
         """处理分析结果"""
         self._set_busy(False)
@@ -451,6 +477,42 @@ class ABComparisonPage(QWidget):
                 "选择两组视频进行诊断分析，例如高流量组 vs 低流量组、不同选题组或不同内容风格组，找出差异、原因和可执行动作。",
             )]
         )
+
+    def _tick_loading(self):
+        dots = "." * (self._loading_step % 4)
+        self.status_badge.setText(f"{self._loading_base}{dots}")
+        self.status_badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: #ffd38b;
+                border: 1px solid {BORDER_STRONG};
+                border-radius: 12px;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            """
+        )
+        self._loading_step += 1
+
+    def _show_status(self, text: str, color: str):
+        self.status_badge.setText(text)
+        self.status_badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: {color};
+                border: 1px solid {BORDER};
+                border-radius: 12px;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            """
+        )
+        if hasattr(self.main_window, "update_runtime_status"):
+            self.main_window.update_runtime_status("AB Comparison", text, color)
 
     def _resolve_group_label(self, videos: list, fallback: str) -> str:
         usernames = []

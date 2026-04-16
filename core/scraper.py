@@ -7,7 +7,7 @@ import os
 import re
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import unquote
 
 sys.path.append('/opt/.manus/.sandbox-runtime')
@@ -612,7 +612,12 @@ class FetchTask:
     def __init__(self, scraper: MultiPlatformScraper):
         self.scraper = scraper
 
-    def run(self, influencer: dict, max_videos: int = 20) -> dict:
+    def run(
+        self,
+        influencer: dict,
+        max_videos: int = 20,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> dict:
         from data.database import add_fetch_log, save_video, update_influencer_profile
 
         username = influencer["username"]
@@ -622,7 +627,12 @@ class FetchTask:
 
         print(f"[Task] Start fetching {platform_label(platform)} creator {username}")
 
+        def report(message: str):
+            if progress_callback:
+                progress_callback(message)
+
         try:
+            report(f"[1/4] Loading profile\n{platform_label(platform)} | @{username}")
             user_info = self.scraper.get_user_info(influencer)
             if user_info:
                 update_influencer_profile(
@@ -639,14 +649,17 @@ class FetchTask:
                     },
                 )
 
+            report(f"[2/4] Fetching videos\nUp to {max_videos} videos")
             videos = self.scraper.get_user_videos(influencer, max_videos)
             videos_found = len(videos)
             videos_new = 0
+            report(f"[3/4] Saving data\nFound {videos_found} videos, writing to the database")
             for video in videos:
                 is_new = save_video(influencer_id, video)
                 if is_new:
                     videos_new += 1
 
+            report(f"[4/4] Fetch complete\nFound {videos_found} videos, added {videos_new} new ones")
             finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             add_fetch_log(
                 influencer_id=influencer_id,
@@ -674,4 +687,5 @@ class FetchTask:
                 finished_at=finished_at,
             )
             print(f"[Task] Fetch failed for {username}: {exc}")
+            report(f"Fetch failed\n{exc}")
             return {"status": "error", "platform": platform, "username": username, "error": str(exc)}

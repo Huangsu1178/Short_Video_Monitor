@@ -72,6 +72,7 @@ class SingleVideoWorker(QThread):
     """单视频分析工作线程"""
     finished = pyqtSignal(object, object, str)
     failed = pyqtSignal(str)
+    progress = pyqtSignal(str)
 
     def __init__(self, analyzer, video, username: str = ""):
         super().__init__()
@@ -81,7 +82,10 @@ class SingleVideoWorker(QThread):
 
     def run(self):
         try:
+            self.progress.emit("[1/3] Preparing video data")
+            self.progress.emit("[2/3] Calling the AI model")
             result = self.analyzer.analyze_video(self.video, self.username)
+            self.progress.emit("[3/3] Formatting the analysis result")
             self.finished.emit(result, self.video, self.username)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -371,8 +375,12 @@ class SingleVideoPage(QWidget):
         self._worker = SingleVideoWorker(self.main_window.ai_analyzer, video, username)
         self._worker.finished.connect(self._handle_result)
         self._worker.failed.connect(self._handle_error)
+        self._worker.progress.connect(self._handle_progress)
         self._worker.start()
     
+    def _handle_progress(self, message: str):
+        self._show_status(message, "#ffd38b")
+
     def _handle_result(self, result, video, username: str):
         """处理分析结果"""
         self._set_busy(False)
@@ -461,6 +469,24 @@ class SingleVideoPage(QWidget):
             )]
         )
     
+    def _show_status(self, text: str, color: str):
+        self.status_badge.setText(text)
+        self.status_badge.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {BG_SURFACE};
+                color: {color};
+                border: 1px solid {BORDER};
+                border-radius: 12px;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            """
+        )
+        if hasattr(self.main_window, "update_runtime_status"):
+            self.main_window.update_runtime_status("Single Video Analysis", text, color)
+
     def show_analysis(self, video: dict, analysis: dict, username: str = ""):
         """展示分析结果"""
         self._update_current_report_cache(video, analysis, username)
